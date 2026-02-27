@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1660" height="940" viewBox="0 0 1660 940">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#0f172a"/>
+    </marker>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #0f172a; }
+      .sub { font: 500 14px Arial, sans-serif; fill: #334155; }
+      .box { fill: #ffffff; stroke: #334155; stroke-width: 1.8; rx: 8; }
+      .warn { fill: #fff7ed; stroke: #fb923c; stroke-width: 1.8; rx: 8; }
+      .ok { fill: #ecfeff; stroke: #0891b2; stroke-width: 1.8; rx: 8; }
+      .h { font: 700 15px Arial, sans-serif; fill: #0f172a; }
+      .t { font: 500 12px Arial, sans-serif; fill: #334155; }
+      .edge { stroke: #0f172a; stroke-width: 1.8; fill: none; marker-end: url(#arr); }
+      .dash { stroke: #475569; stroke-width: 1.5; stroke-dasharray: 6 6; fill: none; marker-end: url(#arr); }
+      .lab { font: 500 12px Arial, sans-serif; fill: #0f172a; }
+      .lane { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.4; rx: 10; }
+    </style>
+  </defs>
+
+  <rect width="1660" height="940" fill="#ffffff"/>
+  <text x="34" y="44" class="title">Сценарий отказа и восстановления</text>
+  <text x="34" y="66" class="sub">Как query-api восстанавливает актуальность при потере Pub/Sub-сообщений</text>
+
+  <rect x="30" y="90" width="460" height="810" class="lane"/>
+  <text x="46" y="118" class="h">Сторона producer</text>
+
+  <rect x="70" y="150" width="380" height="90" class="box"/>
+  <text x="88" y="183" class="h">1) apply-service коммитит новую версию</text>
+  <text x="88" y="205" class="t">dictionary_meta.version = N</text>
+  <text x="88" y="225" class="t">outbox_event создаётся в той же транзакции</text>
+
+  <rect x="70" y="275" width="380" height="90" class="box"/>
+  <text x="88" y="308" class="h">2) outbox-relay публикует инвалидацию</text>
+  <text x="88" y="330" class="t">PUBLISH refdata:inv:pub</text>
+  <text x="88" y="350" class="t">XADD refdata:inv:stream</text>
+
+  <rect x="70" y="400" width="380" height="90" class="warn"/>
+  <text x="88" y="433" class="h">3) временная проблема на подписчике</text>
+  <text x="88" y="455" class="t">restart pod / сеть / backpressure</text>
+  <text x="88" y="475" class="t">Pub/Sub сообщение пропущено</text>
+
+  <rect x="30" y="90" width="460" height="810" fill="none" stroke="#94a3b8" stroke-width="1.4" rx="10"/>
+
+  <rect x="540" y="90" width="500" height="810" class="lane"/>
+  <text x="556" y="118" class="h">Сторона recovery (query-api pod)</text>
+
+  <rect x="580" y="150" width="420" height="100" class="box"/>
+  <text x="598" y="183" class="h">4) обнаружение разрыва</text>
+  <text x="598" y="205" class="t">redis_stream_lag > 0 или replay после старта</text>
+  <text x="598" y="227" class="t">pod переходит в recovery-цикл</text>
+
+  <rect x="580" y="285" width="420" height="100" class="box"/>
+  <text x="598" y="318" class="h">5) XREADGROUP из refdata:inv:stream</text>
+  <text x="598" y="340" class="t">чтение событий consumer-group'ой</text>
+  <text x="598" y="362" class="t">соблюдение порядка по dictionary stream</text>
+
+  <rect x="580" y="420" width="420" height="100" class="box"/>
+  <text x="598" y="453" class="h">6) сравнение event.version и localVersion</text>
+  <text x="598" y="475" class="t">если event новее — планируем single-flight reload</text>
+  <text x="598" y="497" class="t">если старее/равно — пропускаем дубликат</text>
+
+  <rect x="580" y="555" width="420" height="110" class="ok"/>
+  <text x="598" y="588" class="h">7) reload + atomic swap</text>
+  <text x="598" y="610" class="t">полная загрузка из PostgreSQL</text>
+  <text x="598" y="632" class="t">обновление in-memory map и localVersion</text>
+  <text x="598" y="654" class="t">debounce/jitter/лимит параллелизма</text>
+
+  <rect x="580" y="700" width="420" height="100" class="box"/>
+  <text x="598" y="733" class="h">8) XACK обработанного stream-события</text>
+  <text x="598" y="755" class="t">подтверждение и продолжение polling</text>
+  <text x="598" y="777" class="t">периодическая сверка с dictionary_meta.version</text>
+
+  <rect x="1090" y="90" width="540" height="810" class="lane"/>
+  <text x="1106" y="118" class="h">Ожидаемые эксплуатационные эффекты</text>
+
+  <rect x="1130" y="160" width="460" height="110" class="ok"/>
+  <text x="1148" y="194" class="h">Не нужен ручной cache flush</text>
+  <text x="1148" y="216" class="t">Stream replay автоматически догоняет кэш</text>
+  <text x="1148" y="238" class="t">SLA freshness восстанавливается после recovery</text>
+
+  <rect x="1130" y="300" width="460" height="120" class="ok"/>
+  <text x="1148" y="334" class="h">Нет утечки stale-данных в строгом чтении</text>
+  <text x="1148" y="356" class="t">X-Min-Version допускает fallback в primary</text>
+  <text x="1148" y="378" class="t">При недоступной версии возвращается 409</text>
+
+  <rect x="1130" y="450" width="460" height="120" class="ok"/>
+  <text x="1148" y="484" class="h">Процесс recovery наблюдаем</text>
+  <text x="1148" y="506" class="t">Метрики: redis_stream_lag, dict_version_lag, reload_errors</text>
+  <text x="1148" y="528" class="t">Алерты маршрутизируются на on-call команды</text>
+
+  <rect x="1130" y="600" width="460" height="170" class="box"/>
+  <text x="1148" y="634" class="h">Чекпоинты runbook</text>
+  <text x="1148" y="656" class="t">1. Проверить прогресс consumer group</text>
+  <text x="1148" y="678" class="t">2. Проверить рост localVersion в query-api</text>
+  <text x="1148" y="700" class="t">3. Проверить стабилизацию fallback-read rate</text>
+  <text x="1148" y="722" class="t">4. Подтвердить возврат freshness p95/p99 в SLA</text>
+  <text x="1148" y="744" class="t">5. Закрыть инцидент с RCA</text>
+
+  <line x1="450" y1="320" x2="580" y2="320" class="edge"/>
+  <text x="478" y="310" class="lab">stream запись доступна</text>
+
+  <line x1="450" y1="445" x2="580" y2="200" class="dash"/>
+  <text x="474" y="260" class="lab">пропуск Pub/Sub -> детект gap</text>
+
+  <line x1="790" y1="385" x2="790" y2="420" class="edge"/>
+  <line x1="790" y1="520" x2="790" y2="555" class="edge"/>
+  <line x1="790" y1="665" x2="790" y2="700" class="edge"/>
+
+  <line x1="1000" y1="610" x2="1130" y2="355" class="edge"/>
+  <line x1="1000" y1="745" x2="1130" y2="505" class="edge"/>
+</svg>

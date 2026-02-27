@@ -1,0 +1,14 @@
+{
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-25",
+      "path": "/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home",
+      "default": true
+    }
+  ],
+  "java.import.maven.enabled": true,
+  "maven.executable.path": "/opt/homebrew/bin/mvn",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "markdown.validate.enabled": true,
+  "java.configuration.updateBuildConfiguration": "automatic"
+}

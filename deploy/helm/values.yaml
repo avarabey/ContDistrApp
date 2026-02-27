@@ -1,0 +1,41 @@
+refdata:
+  image:
+    repository: contdistrapp/refdata-platform
+    tag: latest
+
+  replicas: 3
+
+  postgres:
+    jdbcUrl: jdbc:postgresql://postgres:5432/refdata
+    username: refdata_user
+    passwordSecretRef: refdata-postgres-password
+
+  kafka:
+    enabled: true
+    externalEnabled: true
+    commandsTopic: refdata.commands
+    externalTopic: refdata.external.commands
+    groupId: refdata-apply-service
+    bootstrapServers: kafka:9092
+
+  redis:
+    enabled: true
+    mode: cluster
+    nodes:
+      - redis-0:6379
+      - redis-1:6379
+      - redis-2:6379
+    pubChannel: refdata:inv:pub
+    streamKey: refdata:inv:stream
+    streamRecoveryPollMs: 1000
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  podDisruptionBudget:
+    minAvailable: 2

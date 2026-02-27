@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="980" viewBox="0 0 1700 980">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#0f172a"/>
+    </marker>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #0f172a; }
+      .sub { font: 500 14px Arial, sans-serif; fill: #334155; }
+      .lane { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.6; rx: 10; }
+      .epic { fill: #ffffff; stroke: #334155; stroke-width: 1.8; rx: 8; }
+      .mil { fill: #ecfeff; stroke: #0891b2; stroke-width: 1.6; rx: 8; }
+      .risk { fill: #fff7ed; stroke: #fb923c; stroke-width: 1.6; rx: 8; }
+      .h { font: 700 15px Arial, sans-serif; fill: #0f172a; }
+      .t { font: 500 12px Arial, sans-serif; fill: #334155; }
+      .edge { stroke: #0f172a; stroke-width: 1.8; fill: none; marker-end: url(#arr); }
+      .lab { font: 500 12px Arial, sans-serif; fill: #0f172a; }
+      .axis { stroke: #64748b; stroke-width: 1.2; }
+      .tick { font: 500 12px Arial, sans-serif; fill: #334155; }
+    </style>
+  </defs>
+
+  <rect width="1700" height="980" fill="#ffffff"/>
+  <text x="34" y="44" class="title">Карта поставки и зависимостей</text>
+  <text x="34" y="66" class="sub">Очередность реализации, точки синхронизации стримов и риски</text>
+
+  <line x1="120" y1="120" x2="1620" y2="120" class="axis"/>
+  <line x1="120" y1="110" x2="120" y2="130" class="axis"/>
+  <line x1="420" y1="110" x2="420" y2="130" class="axis"/>
+  <line x1="720" y1="110" x2="720" y2="130" class="axis"/>
+  <line x1="1020" y1="110" x2="1020" y2="130" class="axis"/>
+  <line x1="1320" y1="110" x2="1320" y2="130" class="axis"/>
+  <line x1="1620" y1="110" x2="1620" y2="130" class="axis"/>
+  <text x="98" y="100" class="tick">M1</text>
+  <text x="398" y="100" class="tick">M2</text>
+  <text x="698" y="100" class="tick">M3</text>
+  <text x="998" y="100" class="tick">M4</text>
+  <text x="1298" y="100" class="tick">M5</text>
+  <text x="1598" y="100" class="tick">M6</text>
+
+  <rect x="30" y="150" width="1640" height="170" class="lane"/>
+  <text x="48" y="178" class="h">Трек Foundation</text>
+
+  <rect x="120" y="195" width="540" height="105" class="epic"/>
+  <text x="138" y="226" class="h">Epic 1: Контракты и инфраструктурный baseline</text>
+  <text x="138" y="248" class="t">OpenAPI, event schema, Helm values, auth-контур</text>
+  <text x="138" y="270" class="t">Результат: зафиксированные интерфейсы для всех стримов</text>
+
+  <rect x="700" y="195" width="500" height="105" class="epic"/>
+  <text x="718" y="226" class="h">Epic 2: Metadata-driven слой доступа к данным</text>
+  <text x="718" y="248" class="t">DictionaryProvider + PostgresSqlProvider + интеграционные тесты</text>
+  <text x="718" y="270" class="t">Результат: независимость от схемы БД</text>
+
+  <rect x="30" y="340" width="1640" height="170" class="lane"/>
+  <text x="48" y="368" class="h">Трек Core Flow</text>
+
+  <rect x="430" y="385" width="560" height="105" class="epic"/>
+  <text x="448" y="416" class="h">Epic 3: Pipeline обновлений</text>
+  <text x="448" y="438" class="t">command-api, kafka-adapter, apply-service, outbox-relay</text>
+  <text x="448" y="460" class="t">Результат: надёжная цепочка commit -> invalidation</text>
+
+  <rect x="970" y="385" width="560" height="105" class="epic"/>
+  <text x="988" y="416" class="h">Epic 4: Query API и кэш-консистентность</text>
+  <text x="988" y="438" class="t">in-memory cache, single-flight reload, X-Min-Version barrier</text>
+  <text x="988" y="460" class="t">Результат: строгое read-after-write</text>
+
+  <rect x="30" y="530" width="1640" height="170" class="lane"/>
+  <text x="48" y="558" class="h">Трек Production Readiness</text>
+
+  <rect x="1170" y="575" width="410" height="105" class="epic"/>
+  <text x="1188" y="606" class="h">Epic 5: SRE и валидация</text>
+  <text x="1188" y="628" class="t">дашборды, алерты, нагрузка/фейловер, runbook</text>
+  <text x="1188" y="650" class="t">Результат: доказательство DoD и операционная готовность</text>
+
+  <rect x="30" y="720" width="1640" height="210" class="lane"/>
+  <text x="48" y="748" class="h">Кросс-стрим milestones и риски</text>
+
+  <rect x="120" y="775" width="340" height="70" class="mil"/>
+  <text x="138" y="805" class="h">Milestone A</text>
+  <text x="138" y="826" class="t">Контракты утверждены архитектурным комитетом</text>
+
+  <rect x="500" y="775" width="430" height="70" class="mil"/>
+  <text x="518" y="805" class="h">Milestone B</text>
+  <text x="518" y="826" class="t">Идемпотентность и version bump подтверждены тестами</text>
+
+  <rect x="970" y="775" width="340" height="70" class="mil"/>
+  <text x="988" y="805" class="h">Milestone C</text>
+  <text x="988" y="826" class="t">Нет stale-read при X-Min-Version</text>
+
+  <rect x="1350" y="775" width="280" height="70" class="mil"/>
+  <text x="1368" y="805" class="h">Milestone D</text>
+  <text x="1368" y="826" class="t">Go-live readiness review</text>
+
+  <rect x="120" y="860" width="530" height="54" class="risk"/>
+  <text x="138" y="892" class="t">Риск: недооценка вариативности схем БД -> ранняя интеграционная матрица</text>
+
+  <rect x="680" y="860" width="500" height="54" class="risk"/>
+  <text x="698" y="892" class="t">Риск: промах по freshness SLO -> тюнинг debounce/jitter/reload limits</text>
+
+  <rect x="1210" y="860" width="420" height="54" class="risk"/>
+  <text x="1228" y="892" class="t">Риск: пробелы в runbook -> game day до запуска</text>
+
+  <line x1="660" y1="248" x2="700" y2="248" class="edge"/>
+  <text x="666" y="238" class="lab">зависимость</text>
+
+  <line x1="950" y1="300" x2="710" y2="385" class="edge"/>
+  <text x="840" y="338" class="lab">нужен провайдер данных</text>
+
+  <line x1="990" y1="438" x2="970" y2="438" class="edge"/>
+  <text x="920" y="428" class="lab">поток событий</text>
+
+  <line x1="1530" y1="628" x2="1475" y2="680" class="edge"/>
+  <text x="1500" y="675" class="lab">вход для проверки</text>
+
+  <line x1="290" y1="300" x2="290" y2="775" class="edge"/>
+  <line x1="780" y1="490" x2="715" y2="775" class="edge"/>
+  <line x1="1250" y1="490" x2="1140" y2="775" class="edge"/>
+  <line x1="1375" y1="680" x2="1490" y2="775" class="edge"/>
+</svg>

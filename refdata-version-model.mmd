@@ -1,0 +1,27 @@
+flowchart LR
+  subgraph DB["PostgreSQL service schema"]
+    DM[("dictionary_meta\nPK(tenant_id,dict_code)\nversion - каноническая версия")]
+    DI[("dictionary_item\nPK(tenant_id,dict_code,item_key)\npayload/deleted")]
+    PE[("processed_event\nPK(tenant_id,event_id)\nидемпотентность")]
+    UR[("update_request\nstatus + committed_version")]
+    OE[("outbox_event\nversion + published")]
+    BT[("Бизнес-таблицы\nчерез SQL-конфиг")]
+  end
+
+  DM --- DI
+  PE --> UR
+  UR --> DM
+  DM --> OE
+  BT --> DM
+
+  AS["apply-service транзакция"] -->|apply + version bump| DM
+  AS -->|dedup check| PE
+  AS -->|status update| UR
+  AS -->|create outbox| OE
+
+  QB["query-api X-Min-Version"] -->|сравнение| DM
+  QB -->|если версия ниже| RESP["409 VERSION_NOT_COMMITTED"]
+  QB -->|если версия достаточна| OK["ответ из memory/fallback"]
+
+  note1["driftCheckSql только диагностика\nне участвует в version barrier"]
+  note1 -.-> DM

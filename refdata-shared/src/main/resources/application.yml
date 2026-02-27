@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: refdata-platform
+  datasource:
+    url: jdbc:h2:mem:refdata;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,metrics
+
+refdata:
+  kafka:
+    enabled: false
+    external-enabled: false
+    commands-topic: refdata.commands
+    external-topic: ""
+    group-id: refdata-apply-service
+  redis:
+    enabled: false
+    pub-channel: refdata:inv:pub
+    stream-key: refdata:inv:stream
+    stream-recovery-poll-ms: 1000
+    stream-start-id: "0-0"
+  consistency:
+    wait-commit-timeout-ms: 300
+  query:
+    wait-for-reload-ms: 100
+  outbox:
+    poll-interval-ms: 50
+    batch-size: 200
+  cache:
+    reload-parallelism: 8
+  dictionaries:
+    - code: COUNTRY
+      enabled: true
+      load-sql: |
+        select item_key as k, payload as v
+        from dictionary_item
+        where tenant_id = :tenantId
+          and dict_code = :dictCode
+          and deleted = false
+      apply:
+        mode: SQL_TEMPLATE
+        upsert-sql: |
+          merge into dictionary_item(tenant_id, dict_code, item_key, payload, deleted, updated_at)
+          key(tenant_id, dict_code, item_key)
+          values (:tenantId, :dictCode, :key, :payload, false, CURRENT_TIMESTAMP)
+        delete-sql: |
+          update dictionary_item
+          set deleted = true,
+              updated_at = CURRENT_TIMESTAMP
+          where tenant_id = :tenantId
+            and dict_code = :dictCode
+            and item_key = :key

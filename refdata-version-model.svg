@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="980" viewBox="0 0 1700 980">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#0f172a"/>
+    </marker>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #0f172a; }
+      .sub { font: 500 14px Arial, sans-serif; fill: #334155; }
+      .tbl { fill: #ffffff; stroke: #334155; stroke-width: 1.8; rx: 8; }
+      .head { fill: #e2e8f0; }
+      .th { font: 700 14px Arial, sans-serif; fill: #0f172a; }
+      .tx { font: 500 12px Arial, sans-serif; fill: #1e293b; }
+      .edge { stroke: #0f172a; stroke-width: 1.7; fill: none; marker-end: url(#arr); }
+      .lab { font: 500 12px Arial, sans-serif; fill: #0f172a; }
+      .zone { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.6; rx: 10; }
+      .call { fill: #ecfeff; stroke: #0891b2; stroke-width: 1.4; rx: 8; }
+      .ct { font: 600 12px Arial, sans-serif; fill: #0c4a6e; }
+    </style>
+  </defs>
+
+  <rect width="1700" height="980" fill="#ffffff"/>
+  <text x="34" y="44" class="title">Модель данных и версионный барьер</text>
+  <text x="34" y="66" class="sub">Служебные таблицы, идемпотентность и жизненный цикл committed-версии</text>
+
+  <rect x="30" y="90" width="1120" height="850" class="zone"/>
+  <text x="46" y="120" class="th">Схема PostgreSQL платформы</text>
+
+  <g transform="translate(60,150)">
+    <rect width="330" height="210" class="tbl"/>
+    <rect width="330" height="38" class="head"/>
+    <text x="14" y="24" class="th">dictionary_meta</text>
+    <text x="14" y="60" class="tx">PK (tenant_id, dict_code)</text>
+    <text x="14" y="82" class="tx">version bigint NOT NULL</text>
+    <text x="14" y="104" class="tx">last_source_revision bigint NULL</text>
+    <text x="14" y="126" class="tx">updated_at timestamptz NOT NULL</text>
+    <text x="14" y="160" class="tx">Каноническая версия для API-барьера</text>
+    <text x="14" y="182" class="tx">Используется query-api при строгом чтении</text>
+  </g>
+
+  <g transform="translate(430,150)">
+    <rect width="330" height="250" class="tbl"/>
+    <rect width="330" height="38" class="head"/>
+    <text x="14" y="24" class="th">dictionary_item</text>
+    <text x="14" y="60" class="tx">PK (tenant_id, dict_code, item_key)</text>
+    <text x="14" y="82" class="tx">payload jsonb</text>
+    <text x="14" y="104" class="tx">deleted boolean</text>
+    <text x="14" y="126" class="tx">updated_at timestamptz</text>
+    <text x="14" y="160" class="tx">Универсальное хранение справочников</text>
+    <text x="14" y="182" class="tx">Либо бизнес-таблицы через SQL-конфиг</text>
+    <text x="14" y="204" class="tx">loadSql должен отдавать (k, v)</text>
+  </g>
+
+  <g transform="translate(800,150)">
+    <rect width="320" height="220" class="tbl"/>
+    <rect width="320" height="38" class="head"/>
+    <text x="14" y="24" class="th">processed_event</text>
+    <text x="14" y="60" class="tx">PK (tenant_id, event_id)</text>
+    <text x="14" y="82" class="tx">source text</text>
+    <text x="14" y="104" class="tx">processed_at timestamptz</text>
+    <text x="14" y="138" class="tx">Барьер идемпотентности</text>
+    <text x="14" y="160" class="tx">Отсекает дубли событий</text>
+  </g>
+
+  <g transform="translate(60,430)">
+    <rect width="330" height="240" class="tbl"/>
+    <rect width="330" height="38" class="head"/>
+    <text x="14" y="24" class="th">update_request</text>
+    <text x="14" y="60" class="tx">PK (tenant_id, event_id)</text>
+    <text x="14" y="82" class="tx">dict_code text</text>
+    <text x="14" y="104" class="tx">status PENDING|COMMITTED|FAILED</text>
+    <text x="14" y="126" class="tx">committed_version bigint NULL</text>
+    <text x="14" y="148" class="tx">error_message text NULL</text>
+    <text x="14" y="182" class="tx">Источник статуса для ASYNC-клиента</text>
+    <text x="14" y="204" class="tx">Используется и в WAIT_COMMIT режиме</text>
+  </g>
+
+  <g transform="translate(430,430)">
+    <rect width="330" height="240" class="tbl"/>
+    <rect width="330" height="38" class="head"/>
+    <text x="14" y="24" class="th">outbox_event</text>
+    <text x="14" y="60" class="tx">id bigserial PK</text>
+    <text x="14" y="82" class="tx">tenant_id, event_id, dict_code</text>
+    <text x="14" y="104" class="tx">version bigint</text>
+    <text x="14" y="126" class="tx">payload jsonb</text>
+    <text x="14" y="148" class="tx">published boolean default false</text>
+    <text x="14" y="182" class="tx">Развязка commit и Redis-публикации</text>
+    <text x="14" y="204" class="tx">Инвалидация только после commit</text>
+  </g>
+
+  <g transform="translate(800,430)">
+    <rect width="320" height="240" class="tbl"/>
+    <rect width="320" height="38" class="head"/>
+    <text x="14" y="24" class="th">Бизнес-таблицы справочников</text>
+    <text x="14" y="60" class="tx">Пример: mdm_country, mdm_currency</text>
+    <text x="14" y="82" class="tx">Конфигурируются SQL-шаблонами</text>
+    <text x="14" y="104" class="tx">upsertSql / deleteSql / snapshotReplaceSql</text>
+    <text x="14" y="138" class="tx">Без хардкода схемы в коде сервиса</text>
+    <text x="14" y="160" class="tx">Поддержка разных структур PostgreSQL</text>
+  </g>
+
+  <line x1="390" y1="255" x2="430" y2="255" class="edge"/>
+  <text x="396" y="245" class="lab">версия набора данных</text>
+
+  <line x1="760" y1="300" x2="800" y2="300" class="edge"/>
+  <text x="768" y="289" class="lab">dedup-проверка</text>
+
+  <line x1="225" y1="430" x2="225" y2="360" class="edge"/>
+  <text x="235" y="397" class="lab">статус + committed_version</text>
+
+  <line x1="595" y1="430" x2="595" y2="360" class="edge"/>
+  <text x="605" y="397" class="lab">создание в той же транзакции</text>
+
+  <line x1="760" y1="550" x2="800" y2="550" class="edge"/>
+  <text x="768" y="540" class="lab">применение SQL-шаблонов</text>
+
+  <rect x="1190" y="90" width="480" height="850" class="zone"/>
+  <text x="1206" y="120" class="th">Правила version barrier</text>
+
+  <rect x="1215" y="160" width="430" height="150" class="call"/>
+  <text x="1232" y="190" class="ct">1) Канонична только dictionary_meta.version</text>
+  <text x="1232" y="214" class="ct">2) driftCheckSql используется только для диагностики</text>
+  <text x="1232" y="238" class="ct">3) X-Min-Version сравнивается с канонической версией</text>
+  <text x="1232" y="262" class="ct">4) если версия ниже барьера -> 409 VERSION_NOT_COMMITTED</text>
+
+  <rect x="1215" y="330" width="430" height="170" class="call"/>
+  <text x="1232" y="360" class="ct">Контракт write-транзакции:</text>
+  <text x="1232" y="384" class="ct">- применить изменения</text>
+  <text x="1232" y="408" class="ct">- увеличить dictionary_meta.version</text>
+  <text x="1232" y="432" class="ct">- обновить update_request и outbox_event</text>
+  <text x="1232" y="456" class="ct">Все операции в одной commit-границе</text>
+
+  <rect x="1215" y="520" width="430" height="180" class="call"/>
+  <text x="1232" y="550" class="ct">Контракт чтения:</text>
+  <text x="1232" y="574" class="ct">- чтение из памяти при достаточной localVersion</text>
+  <text x="1232" y="598" class="ct">- иначе проверка dictionary_meta.version в primary</text>
+  <text x="1232" y="622" class="ct">- fallback-read + инициирование reload при необходимости</text>
+  <text x="1232" y="646" class="ct">- ответ с X-Dict-Version и источником данных</text>
+
+  <line x1="1120" y1="255" x2="1215" y2="235" class="edge"/>
+  <line x1="760" y1="550" x2="1215" y2="430" class="edge"/>
+  <line x1="390" y1="550" x2="1215" y2="610" class="edge"/>
+</svg>

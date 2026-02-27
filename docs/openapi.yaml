@@ -1,0 +1,88 @@
+openapi: 3.1.0
+info:
+  title: RefData Platform API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/tenants/{tenantId}/updates:
+    post:
+      summary: Submit DELTA or SNAPSHOT update
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: consistencyMode
+          required: false
+          schema:
+            type: string
+            enum: [ASYNC, WAIT_COMMIT]
+        - in: query
+          name: timeoutMs
+          required: false
+          schema:
+            type: integer
+            minimum: 50
+            maximum: 1000
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/command-event.schema.json
+      responses:
+        '200':
+          description: Committed in WAIT_COMMIT mode
+        '202':
+          description: Accepted for async processing
+  /v1/tenants/{tenantId}/updates/{eventId}:
+    get:
+      summary: Fetch update status
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: eventId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current status
+  /v1/tenants/{tenantId}/dictionaries/{dictCode}/items/{key}:
+    get:
+      summary: Read one item by key
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: dictCode
+          required: true
+          schema: { type: string }
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Min-Version
+          required: false
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Dictionary item
+        '409':
+          description: VERSION_NOT_COMMITTED
+  /v1/tenants/{tenantId}/dictionaries/{dictCode}/items:
+    get:
+      summary: Read subset by keys
+  /v1/tenants/{tenantId}/dictionaries/{dictCode}/all:
+    get:
+      summary: Read whole dictionary
+  /v1/tenants/{tenantId}/dictionaries/{dictCode}/version:
+    get:
+      summary: Read local cache version

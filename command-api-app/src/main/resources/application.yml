@@ -1,0 +1,4 @@
+refdata:
+  role: command-api
+  kafka:
+    enabled: true

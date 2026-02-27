@@ -1,0 +1,41 @@
+flowchart LR
+  subgraph EXT["Внешние системы"]
+    WR["Клиент записи"]
+    RD["Клиент чтения"]
+    EK["Внешний Kafka producer"]
+  end
+
+  subgraph ING["Контур приёма"]
+    CA["refdata-command-api"]
+    KA["refdata-kafka-adapter"]
+    KC[("Kafka refdata.commands\nkey=tenantId:dictCode")]
+  end
+
+  subgraph APP["Контур применения"]
+    AS["refdata-apply-service"]
+    PG[("PostgreSQL\nканонические данные + service tables")]
+    OR["refdata-outbox-relay"]
+  end
+
+  subgraph RT["Сигнализация"]
+    RP[("Redis Pub/Sub\nrefdata:inv:pub")]
+    RS[("Redis Streams\nrefdata:inv:stream")]
+  end
+
+  subgraph READ["Контур чтения"]
+    QA["refdata-query-api\nкэш в памяти + version barrier"]
+  end
+
+  WR -->|POST /updates| CA
+  EK -->|external topic| KA
+  CA -->|нормализация + статус PENDING| KC
+  KA -->|нормализация tenant| KC
+  KC --> AS
+  AS -->|apply + version + outbox| PG
+  PG --> OR
+  OR -->|PUBLISH| RP
+  OR -->|XADD| RS
+  RP --> QA
+  RS -->|recovery| QA
+  QA -->|reload/fallback| PG
+  RD -->|GET /dictionaries| QA

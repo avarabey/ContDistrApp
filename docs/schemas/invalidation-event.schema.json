@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contdistrapp.local/schemas/invalidation-event.schema.json",
+  "title": "RefDataInvalidationEvent",
+  "type": "object",
+  "required": ["eventId", "tenantId", "dictCode", "version", "committedAt"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "tenantId": { "type": "string" },
+    "dictCode": { "type": "string" },
+    "version": { "type": "integer" },
+    "committedAt": { "type": "string", "format": "date-time" }
+  }
+}

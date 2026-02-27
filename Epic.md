@@ -65,6 +65,32 @@
 7. `Redis Cluster`
    1. Только сигнализация изменений и механизм догоняния.
 
+### 3.1 Архитектурная схема сервиса
+
+![Архитектура сервиса](./refdata-architecture.svg)
+Mermaid-версия: [refdata-architecture.mmd](./refdata-architecture.mmd)
+
+### 3.2 Дополнительные схемы для ролей
+
+1. Для аналитиков:
+   1. Контекст системы (кто взаимодействует с платформой и через какие контракты):  
+      ![System Context](./refdata-context.svg)
+      Mermaid-версия: [refdata-context.mmd](./refdata-context.mmd)
+   2. Последовательность записи/чтения с ветками `ASYNC|WAIT_COMMIT` и барьером `X-Min-Version`:  
+      ![Write Read Sequence](./refdata-write-read-sequence.svg)
+      Mermaid-версия: [refdata-write-read-sequence.mmd](./refdata-write-read-sequence.mmd)
+2. Для лидера АС:
+   1. Модель данных и версия консистентности (`dictionary_meta.version` как канонический источник):  
+      ![Data Model and Version Barrier](./refdata-version-model.svg)
+      Mermaid-версия: [refdata-version-model.mmd](./refdata-version-model.mmd)
+   2. Поток отказа/восстановления (потеря Pub/Sub и восстановление через Streams):  
+      ![Failure and Recovery](./refdata-recovery.svg)
+      Mermaid-версия: [refdata-recovery.mmd](./refdata-recovery.mmd)
+3. Для стрим-лида:
+   1. Карта зависимостей эпиков и контрольных точек поставки:  
+      ![Delivery Dependency Map](./refdata-delivery-plan.svg)
+      Mermaid-версия: [refdata-delivery-plan.mmd](./refdata-delivery-plan.mmd)
+
 ---
 
 ## 4. Принцип независимости от структуры БД (обязательное требование)
