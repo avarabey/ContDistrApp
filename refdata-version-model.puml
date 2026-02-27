@@ -1,0 +1,39 @@
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+
+package "PostgreSQL service schema" {
+  entity "dictionary_meta\nPK(tenant_id,dict_code)\nversion - каноническая версия" as DM
+  entity "dictionary_item\nPK(tenant_id,dict_code,item_key)\npayload/deleted" as DI
+  entity "processed_event\nPK(tenant_id,event_id)\nидемпотентность" as PE
+  entity "update_request\nstatus + committed_version" as UR
+  entity "outbox_event\nversion + published" as OE
+  entity "Бизнес-таблицы\nчерез SQL-конфиг" as BT
+}
+
+component "apply-service транзакция" as AS
+component "query-api X-Min-Version" as QB
+note right of QB
+если версия ниже -> 409 VERSION_NOT_COMMITTED
+если версия достаточна -> ответ из memory/fallback
+end note
+
+note bottom of DM
+ driftCheckSql только диагностика
+ не участвует в version barrier
+end note
+
+DM -- DI
+PE --> UR
+UR --> DM
+DM --> OE
+BT --> DM
+
+AS --> DM : apply + version bump
+AS --> PE : dedup check
+AS --> UR : status update
+AS --> OE : create outbox
+
+QB --> DM : сравнение
+@enduml

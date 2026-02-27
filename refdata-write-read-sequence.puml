@@ -1,0 +1,43 @@
+@startuml
+skinparam defaultFontName Arial
+
+actor "Клиент" as C
+participant "command-api" as API
+queue "Kafka" as K
+participant "apply-service" as A
+database "PostgreSQL" as PG
+participant "outbox-relay" as O
+queue "Redis" as R
+participant "query-api" as Q
+
+C -> API : POST /updates (ASYNC|WAIT_COMMIT)
+API -> K : publish refdata.commands (key tenant:dict)
+K -> A : consume ordered event
+A -> PG : TX apply + bump dictionary_meta.version
+A -> PG : update_request + outbox_event
+PG --> O : poll outbox
+O -> R : PUBLISH + XADD invalidation
+R -> Q : event {tenant,dict,version}
+Q -> PG : reload dictionary + atomic swap
+
+alt ASYNC
+  API --> C : 202 + eventId + statusUrl
+  C -> API : GET /updates/{eventId}
+  API --> C : COMMITTED + committedVersion
+else WAIT_COMMIT
+  API --> C : 200 + committedVersion (или 202 timeout)
+end
+
+C -> Q : GET /dictionaries/* with X-Min-Version
+alt localVersion >= X-Min-Version
+  Q --> C : data from memory + X-Dict-Version
+else localVersion < X-Min-Version
+  Q -> PG : check dictionary_meta.version
+  alt primary version >= X-Min-Version
+    Q -> PG : fallback read + force reload
+    Q --> C : data + X-Data-Source=postgres_fallback
+  else primary version < X-Min-Version
+    Q --> C : 409 VERSION_NOT_COMMITTED
+  end
+end
+@enduml

@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+
+package "Внешние системы" {
+  actor "Клиент записи" as WR
+  actor "Клиент чтения" as RD
+  component "Внешний Kafka producer" as EK
+}
+
+package "Контур приёма" {
+  component "refdata-command-api" as CA
+  component "refdata-kafka-adapter" as KA
+  queue "Kafka\nrefdata.commands\nkey=tenantId:dictCode" as KC
+}
+
+package "Контур применения" {
+  component "refdata-apply-service" as AS
+  database "PostgreSQL\nканонические данные +\nservice tables" as PG
+  component "refdata-outbox-relay" as OR
+}
+
+package "Сигнализация" {
+  queue "Redis Pub/Sub\nrefdata:inv:pub" as RP
+  queue "Redis Streams\nrefdata:inv:stream" as RS
+}
+
+package "Контур чтения" {
+  component "refdata-query-api\nкэш в памяти +\nversion barrier" as QA
+}
+
+WR --> CA : POST /updates
+EK --> KA : external topic
+CA --> KC : нормализация + PENDING
+KA --> KC : нормализация tenant
+KC --> AS : ordered consume
+AS --> PG : apply + version + outbox
+PG --> OR : poll outbox
+OR --> RP : PUBLISH
+OR --> RS : XADD
+RP --> QA : invalidation
+RS --> QA : recovery
+QA --> PG : reload / fallback
+RD --> QA : GET /dictionaries
+@enduml

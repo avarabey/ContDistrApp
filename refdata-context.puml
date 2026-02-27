@@ -1,0 +1,51 @@
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+
+package "Внешний контур" {
+  component "MDM-источник" as MDM
+  component "Операционный backoffice" as OPS
+  component "Бизнес-сервисы" as BS
+  component "Identity Provider" as IAM
+  component "Observability stack" as OBS
+}
+
+package "Платформа справочников" {
+  component "command-api" as CA
+  component "kafka-adapter" as KA
+  queue "Kafka\nrefdata.commands" as KC
+  component "apply-service" as AS
+  component "outbox-relay" as OR
+  component "query-api" as QA
+  database "PostgreSQL" as PG
+  queue "Redis Cluster" as R
+}
+
+package "Инфраструктура" {
+  component "Kubernetes + Istio" as K8S
+  component "Tenant-изоляция / JWT / mTLS" as SEC
+}
+
+MDM --> KA : Kafka события
+OPS --> CA : REST update
+BS --> QA : REST чтение
+IAM ..> CA : tenant_id claim
+IAM ..> QA : tenant_id claim
+
+CA --> KC
+KA --> KC
+KC --> AS
+AS --> PG
+PG --> OR
+OR --> R
+R --> QA
+QA --> PG
+
+QA ..> OBS
+AS ..> OBS
+K8S ..> CA
+K8S ..> QA
+SEC ..> CA
+SEC ..> QA
+@enduml

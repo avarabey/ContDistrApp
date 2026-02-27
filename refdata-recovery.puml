@@ -1,0 +1,36 @@
+@startuml
+skinparam defaultFontName Arial
+
+start
+:1) apply-service commit\nversion=N, outbox row;
+:2) outbox-relay\nPUBLISH + XADD;
+
+if (3) Pub/Sub потерян?\n(рестарт/сеть/backpressure)) then (Нет)
+  :Обычная инвалидация query-api;
+else (Да)
+  :4) Детект gap\nredis_stream_lag / startup replay;
+  :5) XREADGROUP из stream;
+
+  if (6) event.version > localVersion?) then (Нет)
+    :Пропустить дубликат\nXACK;
+  else (Да)
+    :7) Single-flight full reload\n+ atomic swap;
+    :8) XACK\nобновить localVersion;
+    :Периодическая сверка\nс dictionary_meta.version;
+  endif
+endif
+
+note right
+Результат:
+кэш догоняется автоматически
+без ручного вмешательства
+end note
+
+note left
+Строгие чтения не stale:
+X-Min-Version и 409
+при недокоммите
+end note
+
+stop
+@enduml

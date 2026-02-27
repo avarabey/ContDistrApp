@@ -1,0 +1,33 @@
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+
+rectangle "Epic 1\nКонтракты и infra baseline" as E1
+rectangle "Epic 2\nMetadata-driven data access" as E2
+rectangle "Epic 3\nPipeline обновлений" as E3
+rectangle "Epic 4\nQuery API + кэш-консистентность" as E4
+rectangle "Epic 5\nSRE + production readiness" as E5
+
+rectangle "Milestone A\nКонтракты утверждены" as M1
+rectangle "Milestone B\nIdempotency + version bump доказаны" as M2
+rectangle "Milestone C\nНет stale-read под X-Min-Version" as M3
+rectangle "Milestone D\nGo-live readiness review" as M4
+
+artifact "Риск: вариативность схем БД" as R1
+artifact "Риск: промах по freshness SLO" as R2
+artifact "Риск: пробелы runbook" as R3
+
+E1 --> E2
+E2 --> E3
+E3 --> E4
+E4 --> E5
+
+E1 --> M1
+E3 --> M2
+E4 --> M3
+E5 --> M4
+
+R1 ..> E2
+R2 ..> E4
+R3 ..> E5
+@enduml

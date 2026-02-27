@@ -68,28 +68,28 @@
 ### 3.1 Архитектурная схема сервиса
 
 ![Архитектура сервиса](./refdata-architecture.svg)
-Mermaid-версия: [refdata-architecture.mmd](./refdata-architecture.mmd)
 
 ### 3.2 Дополнительные схемы для ролей
 
-1. Для аналитиков:
-   1. Контекст системы (кто взаимодействует с платформой и через какие контракты):  
-      ![System Context](./refdata-context.svg)
-      Mermaid-версия: [refdata-context.mmd](./refdata-context.mmd)
-   2. Последовательность записи/чтения с ветками `ASYNC|WAIT_COMMIT` и барьером `X-Min-Version`:  
-      ![Write Read Sequence](./refdata-write-read-sequence.svg)
-      Mermaid-версия: [refdata-write-read-sequence.mmd](./refdata-write-read-sequence.mmd)
-2. Для лидера АС:
-   1. Модель данных и версия консистентности (`dictionary_meta.version` как канонический источник):  
-      ![Data Model and Version Barrier](./refdata-version-model.svg)
-      Mermaid-версия: [refdata-version-model.mmd](./refdata-version-model.mmd)
-   2. Поток отказа/восстановления (потеря Pub/Sub и восстановление через Streams):  
-      ![Failure and Recovery](./refdata-recovery.svg)
-      Mermaid-версия: [refdata-recovery.mmd](./refdata-recovery.mmd)
-3. Для стрим-лида:
-   1. Карта зависимостей эпиков и контрольных точек поставки:  
-      ![Delivery Dependency Map](./refdata-delivery-plan.svg)
-      Mermaid-версия: [refdata-delivery-plan.mmd](./refdata-delivery-plan.mmd)
+#### Для аналитиков: Контекст системы
+
+![Контекст системы](./refdata-context.svg)
+
+#### Для аналитиков: Последовательность записи/чтения
+
+![Последовательность записи/чтения](./refdata-write-read-sequence.svg)
+
+#### Для лидера АС: Модель данных и версия консистентности
+
+![Модель данных и версия](./refdata-version-model.svg)
+
+#### Для лидера АС: Поток отказа/восстановления
+
+![Поток отказа и восстановления](./refdata-recovery.svg)
+
+#### Для стрим-лида: Карта зависимостей эпиков
+
+![Карта зависимостей эпиков](./refdata-delivery-plan.svg)
 
 ---
 
@@ -316,6 +316,7 @@ refdata:
 ```
 
 Правила:
+
 1. Kafka message key обязателен: `{tenantId}:{dictCode}`.
 2. `SNAPSHOT` имеет семантику полного замещения набора ключей для `(tenantId, dictCode)`:
    1. Ключи, отсутствующие в snapshot, считаются удаленными.
@@ -348,6 +349,7 @@ refdata:
 5. `outbox_event(id bigserial pk, tenant_id, event_id, dict_code, version, payload jsonb, created_at, published boolean default false)`
 
 Примечание:
+
 1. Если справочники физически хранятся в других таблицах, перечисленные таблицы остаются служебными таблицами платформы.
 2. Каноническая версия для API-барьера хранится только в `dictionary_meta.version`.
 
@@ -581,8 +583,8 @@ refdata:
    1. Шаги: серия обновлений с измерением времени до появления в Pod-кэше.
    2. Ожидание: `p95 <= 300ms`, `p99 <= 1s`.
 10. `AT-10 Tenant isolation`
-   1. Шаги: выполнить запрос с `tenantId`, не совпадающим с auth claim.
-   2. Ожидание: `403`.
+    1. Шаги: выполнить запрос с `tenantId`, не совпадающим с auth claim.
+    2. Ожидание: `403`.
 
 ---
 
