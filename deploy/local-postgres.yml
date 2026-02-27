@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/contdistrapp
+    username: andrewt
+    password:
+    driver-class-name: org.postgresql.Driver
+
+refdata:
+  role: all
+  kafka:
+    enabled: false
+  redis:
+    enabled: false
+  dictionaries:
+    - code: COUNTRY
+      enabled: true
+      load-sql: |
+        select item_key as k, payload as v
+        from dictionary_item
+        where tenant_id = :tenantId
+          and dict_code = :dictCode
+          and deleted = false
+      apply:
+        mode: SQL_TEMPLATE
+        upsert-sql: |
+          insert into dictionary_item(tenant_id, dict_code, item_key, payload, deleted, updated_at)
+          values (:tenantId, :dictCode, :key, :payload, false, CURRENT_TIMESTAMP)
+          on conflict (tenant_id, dict_code, item_key)
+          do update set
+            payload = excluded.payload,
+            deleted = false,
+            updated_at = CURRENT_TIMESTAMP
+        delete-sql: |
+          update dictionary_item
+          set deleted = true,
+              updated_at = CURRENT_TIMESTAMP
+          where tenant_id = :tenantId
+            and dict_code = :dictCode
+            and item_key = :key

@@ -47,11 +47,14 @@ mvn test
 Запуск отдельных сервисов:
 
 ```bash
-mvn -pl command-api-app spring-boot:run
-mvn -pl apply-service-app spring-boot:run
-mvn -pl query-api-app spring-boot:run
-mvn -pl outbox-relay-app spring-boot:run
+mvn -pl command-api-app -am spring-boot:run
+mvn -pl apply-service-app -am spring-boot:run
+mvn -pl query-api-app -am spring-boot:run
+mvn -pl outbox-relay-app -am spring-boot:run
 ```
+
+`-am` обязателен при запуске из корня multi-module проекта: он собирает зависимый модуль
+`refdata-shared`, иначе возникает ошибка `Could not find artifact com.contdistrapp:refdata-shared`.
 
 По умолчанию используется in-memory H2 в PostgreSQL-режиме (в shared-конфигурации).
 

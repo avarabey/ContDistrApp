@@ -13,6 +13,10 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +30,12 @@ public class PlatformRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final boolean postgresDialect;
 
     public PlatformRepository(NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.postgresDialect = detectPostgresDialect(jdbc.getJdbcTemplate().getDataSource());
     }
 
     public void createUpdateRequestIfAbsent(UpdateCommand command) {
@@ -40,7 +46,20 @@ public class PlatformRepository {
                 .addValue("status", UpdateStatus.PENDING.name())
                 .addValue("eventType", command.eventType().name())
                 .addValue("snapshotId", command.snapshotId())
-                .addValue("now", Instant.now());
+                .addValue("now", dbNow());
+        if (postgresDialect) {
+            jdbc.update("""
+                    insert into update_request(
+                        tenant_id, event_id, dict_code, status, event_type, snapshot_id,
+                        created_at, updated_at
+                    ) values (
+                        :tenantId, :eventId, :dictCode, :status, :eventType, :snapshotId,
+                        :now, :now
+                    )
+                    on conflict (tenant_id, event_id) do nothing
+                    """, params);
+            return;
+        }
         try {
             jdbc.update("""
                     insert into update_request(
@@ -52,7 +71,7 @@ public class PlatformRepository {
                     )
                     """, params);
         } catch (DuplicateKeyException ignored) {
-            // idempotent create
+            // idempotent create (H2 path)
         }
     }
 
@@ -81,7 +100,7 @@ public class PlatformRepository {
                 .addValue("eventId", eventId)
                 .addValue("status", UpdateStatus.COMMITTED.name())
                 .addValue("version", version)
-                .addValue("now", Instant.now());
+                .addValue("now", dbNow());
         jdbc.update("""
                 update update_request
                 set status = :status,
@@ -100,7 +119,7 @@ public class PlatformRepository {
                 .addValue("snapshotId", snapshotId)
                 .addValue("status", UpdateStatus.COMMITTED.name())
                 .addValue("version", version)
-                .addValue("now", Instant.now());
+                .addValue("now", dbNow());
         jdbc.update("""
                 update update_request
                 set status = :status,
@@ -120,7 +139,7 @@ public class PlatformRepository {
                 .addValue("eventId", eventId)
                 .addValue("status", UpdateStatus.FAILED.name())
                 .addValue("message", message)
-                .addValue("now", Instant.now());
+                .addValue("now", dbNow());
         jdbc.update("""
                 update update_request
                 set status = :status,
@@ -136,7 +155,15 @@ public class PlatformRepository {
                 .addValue("tenantId", command.tenantId())
                 .addValue("eventId", command.eventId())
                 .addValue("source", command.source())
-                .addValue("processedAt", Instant.now());
+                .addValue("processedAt", dbNow());
+        if (postgresDialect) {
+            int updated = jdbc.update("""
+                    insert into processed_event(tenant_id, event_id, source, processed_at)
+                    values (:tenantId, :eventId, :source, :processedAt)
+                    on conflict (tenant_id, event_id) do nothing
+                    """, params);
+            return updated == 1;
+        }
         try {
             int updated = jdbc.update("""
                     insert into processed_event(tenant_id, event_id, source, processed_at)
@@ -170,7 +197,7 @@ public class PlatformRepository {
                     .addValue("tenantId", tenantId)
                     .addValue("dictCode", dictCode)
                     .addValue("sourceRevision", sourceRevision)
-                    .addValue("now", Instant.now());
+                    .addValue("now", dbNow());
 
             int updated = jdbc.update("""
                     update dictionary_meta
@@ -190,13 +217,27 @@ public class PlatformRepository {
                 return dictionaryMeta(tenantId, dictCode).version();
             }
 
+            MapSqlParameterSource insertParams = new MapSqlParameterSource()
+                    .addValue("tenantId", tenantId)
+                    .addValue("dictCode", dictCode)
+                    .addValue("version", 1L)
+                    .addValue("sourceRevision", sourceRevision)
+                    .addValue("now", dbNow());
+            if (postgresDialect) {
+                int inserted = jdbc.update("""
+                        insert into dictionary_meta(
+                            tenant_id, dict_code, version, last_source_revision, updated_at
+                        ) values (
+                            :tenantId, :dictCode, :version, :sourceRevision, :now
+                        )
+                        on conflict (tenant_id, dict_code) do nothing
+                        """, insertParams);
+                if (inserted == 1) {
+                    return 1L;
+                }
+                continue;
+            }
             try {
-                MapSqlParameterSource insertParams = new MapSqlParameterSource()
-                        .addValue("tenantId", tenantId)
-                        .addValue("dictCode", dictCode)
-                        .addValue("version", 1L)
-                        .addValue("sourceRevision", sourceRevision)
-                        .addValue("now", Instant.now());
                 jdbc.update("""
                         insert into dictionary_meta(
                             tenant_id, dict_code, version, last_source_revision, updated_at
@@ -206,7 +247,7 @@ public class PlatformRepository {
                         """, insertParams);
                 return 1L;
             } catch (DuplicateKeyException ignored) {
-                // lost race, retry
+                // lost race, retry (H2 path)
             }
         }
         throw new DataAccessException("Unable to allocate next version") {
@@ -220,7 +261,7 @@ public class PlatformRepository {
                 .addValue("dictCode", dictCode)
                 .addValue("version", version)
                 .addValue("payload", payload)
-                .addValue("createdAt", Instant.now());
+                .addValue("createdAt", dbNow());
         jdbc.update("""
                 insert into outbox_event(tenant_id, event_id, dict_code, version, payload, created_at, published)
                 values (:tenantId, :eventId, :dictCode, :version, :payload, :createdAt, false)
@@ -248,7 +289,7 @@ public class PlatformRepository {
     public void markOutboxPublished(long id) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("id", id)
-                .addValue("publishedAt", Instant.now());
+                .addValue("publishedAt", dbNow());
         jdbc.update("""
                 update outbox_event
                 set published = true,
@@ -288,7 +329,7 @@ public class PlatformRepository {
                 .addValue("chunkIndex", command.chunkIndex())
                 .addValue("chunksTotal", command.chunksTotal())
                 .addValue("itemsPayload", payload)
-                .addValue("createdAt", Instant.now());
+                .addValue("createdAt", dbNow());
         jdbc.update("""
                 insert into snapshot_chunk(
                     tenant_id, dict_code, snapshot_id, chunk_index, chunks_total, items_payload, created_at
@@ -370,5 +411,21 @@ public class PlatformRepository {
                   and event_id = :eventId
                 """, params, (rs, rowNum) -> rs.getString("event_type"));
         return rows.stream().findFirst().map(v -> EventType.SNAPSHOT.name().equals(v)).orElse(false);
+    }
+
+    private Timestamp dbNow() {
+        return Timestamp.from(Instant.now());
+    }
+
+    private boolean detectPostgresDialect(DataSource dataSource) {
+        if (dataSource == null) {
+            return false;
+        }
+        try (Connection connection = dataSource.getConnection()) {
+            String product = connection.getMetaData().getDatabaseProductName();
+            return product != null && product.toLowerCase().contains("postgresql");
+        } catch (SQLException ignored) {
+            return false;
+        }
     }
 }
