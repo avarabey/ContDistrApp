@@ -75,3 +75,31 @@ refdata:
           where tenant_id = :tenantId
             and dict_code = :dictCode
             and item_key = :key
+    - code: REL_TASK
+      enabled: true
+      load-sql: |
+        select cast(id as varchar) as k, payload_json as v
+        from rel_task
+        where tenant_id = :tenantId
+          and deleted = false
+      apply:
+        mode: SQL_TEMPLATE
+        upsert-sql: |
+          merge into rel_task(
+            id, tenant_id, project_id, assignee_employee_id, task_key, title, details,
+            estimate_hours, progress_percent, due_at, completed, payload_json, deleted, updated_at
+          )
+          key(id)
+          values (
+            cast(:key as bigint), :tenantId,
+            (select id from rel_project where tenant_id = :tenantId order by id fetch first 1 row only),
+            (select id from rel_employee where tenant_id = :tenantId order by id fetch first 1 row only),
+            concat('TASK-', :key), concat('Task ', :key), 'api-managed row',
+            8, 0, CURRENT_TIMESTAMP, false, :payload, false, CURRENT_TIMESTAMP
+          )
+        delete-sql: |
+          update rel_task
+          set deleted = true,
+              updated_at = CURRENT_TIMESTAMP
+          where id = cast(:key as bigint)
+            and tenant_id = :tenantId
