@@ -67,29 +67,331 @@
 
 ### 3.1 Архитектурная схема сервиса
 
+```text
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #0f172a
+skinparam ArrowThickness 2
+
+package "Внешние системы" {
+  actor "Клиент записи" as WR
+  actor "Клиент чтения" as RD
+  component "Внешний Kafka producer" as EK
+}
+
+package "Контур приёма" {
+  component "refdata-command-api" as CA
+  component "refdata-kafka-adapter" as KA
+  queue "Kafka\nrefdata.commands\nkey=tenantId:dictCode" as KC
+}
+
+package "Контур применения" {
+  component "refdata-apply-service" as AS
+  database "PostgreSQL\nканонические данные +\nservice tables" as PG
+  component "refdata-outbox-relay" as OR
+}
+
+package "Сигнализация" {
+  queue "Redis Pub/Sub\nrefdata:inv:pub" as RP
+  queue "Redis Streams\nrefdata:inv:stream" as RS
+}
+
+package "Контур чтения" {
+  component "refdata-query-api\nкэш в памяти +\nversion barrier" as QA
+}
+
+WR --> CA : POST /updates
+EK --> KA : external topic
+CA --> KC : нормализация + PENDING
+KA --> KC : нормализация tenant
+KC --> AS : ordered consume
+AS --> PG : apply + version + outbox
+PG --> OR : poll outbox
+OR --> RP : PUBLISH
+OR --> RS : XADD
+RP --> QA : invalidation
+RS --> QA : recovery
+QA --> PG : reload / fallback
+RD --> QA : GET /dictionaries
+@enduml
+```
+
 ![Архитектура сервиса](./refdata-architecture.svg)
+
+SVG вариант: [refdata-architecture.svg](./refdata-architecture.svg)
 
 ### 3.2 Дополнительные схемы для ролей
 
 #### Для аналитиков: Контекст системы
 
+```text
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #0f172a
+skinparam ArrowThickness 2
+
+package "Внешний контур" {
+  component "MDM-источник" as MDM
+  component "Операционный backoffice" as OPS
+  component "Бизнес-сервисы" as BS
+  component "Identity Provider" as IAM
+  component "Observability stack" as OBS
+}
+
+package "Платформа справочников" {
+  component "command-api" as CA
+  component "kafka-adapter" as KA
+  queue "Kafka\nrefdata.commands" as KC
+  component "apply-service" as AS
+  component "outbox-relay" as OR
+  component "query-api" as QA
+  database "PostgreSQL" as PG
+  queue "Redis Cluster" as R
+}
+
+package "Инфраструктура" {
+  component "Kubernetes + Istio" as K8S
+  component "Tenant-изоляция / JWT / mTLS" as SEC
+}
+
+MDM --> KA : Kafka события
+OPS --> CA : REST update
+BS --> QA : REST чтение
+IAM ..> CA : tenant_id claim
+IAM ..> QA : tenant_id claim
+
+CA --> KC
+KA --> KC
+KC --> AS
+AS --> PG
+PG --> OR
+OR --> R
+R --> QA
+QA --> PG
+
+QA ..> OBS
+AS ..> OBS
+K8S ..> CA
+K8S ..> QA
+SEC ..> CA
+SEC ..> QA
+@enduml
+```
+
 ![Контекст системы](./refdata-context.svg)
+
+SVG вариант: [refdata-context.svg](./refdata-context.svg)
 
 #### Для аналитиков: Последовательность записи/чтения
 
+```text
+@startuml
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #0f172a
+skinparam ArrowThickness 2
+
+actor "Клиент" as C
+participant "command-api" as API
+queue "Kafka" as K
+participant "apply-service" as A
+database "PostgreSQL" as PG
+participant "outbox-relay" as O
+queue "Redis" as R
+participant "query-api" as Q
+
+C -> API : POST /updates (ASYNC|WAIT_COMMIT)
+API -> K : publish refdata.commands (key tenant:dict)
+K -> A : consume ordered event
+A -> PG : TX apply + bump dictionary_meta.version
+A -> PG : update_request + outbox_event
+PG --> O : poll outbox
+O -> R : PUBLISH + XADD invalidation
+R -> Q : event {tenant,dict,version}
+Q -> PG : reload dictionary + atomic swap
+
+alt ASYNC
+  API --> C : 202 + eventId + statusUrl
+  C -> API : GET /updates/{eventId}
+  API --> C : COMMITTED + committedVersion
+else WAIT_COMMIT
+  API --> C : 200 + committedVersion (или 202 timeout)
+end
+
+C -> Q : GET /dictionaries/* with X-Min-Version
+alt localVersion >= X-Min-Version
+  Q --> C : data from memory + X-Dict-Version
+else localVersion < X-Min-Version
+  Q -> PG : check dictionary_meta.version
+  alt primary version >= X-Min-Version
+    Q -> PG : fallback read + force reload
+    Q --> C : data + X-Data-Source=postgres_fallback
+  else primary version < X-Min-Version
+    Q --> C : 409 VERSION_NOT_COMMITTED
+  end
+end
+@enduml
+```
+
 ![Последовательность записи/чтения](./refdata-write-read-sequence.svg)
+
+SVG вариант: [refdata-write-read-sequence.svg](./refdata-write-read-sequence.svg)
 
 #### Для лидера АС: Модель данных и версия консистентности
 
+```text
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #0f172a
+skinparam ArrowThickness 2
+
+package "PostgreSQL service schema" {
+  entity "dictionary_meta\nPK(tenant_id,dict_code)\nversion - каноническая версия" as DM
+  entity "dictionary_item\nPK(tenant_id,dict_code,item_key)\npayload/deleted" as DI
+  entity "processed_event\nPK(tenant_id,event_id)\nидемпотентность" as PE
+  entity "update_request\nstatus + committed_version" as UR
+  entity "outbox_event\nversion + published" as OE
+  entity "Бизнес-таблицы\nчерез SQL-конфиг" as BT
+}
+
+component "apply-service транзакция" as AS
+component "query-api X-Min-Version" as QB
+note right of QB
+если версия ниже -> 409 VERSION_NOT_COMMITTED
+если версия достаточна -> ответ из memory/fallback
+end note
+
+note bottom of DM
+driftCheckSql только диагностика
+не участвует в version barrier
+end note
+
+DM -- DI
+PE --> UR
+UR --> DM
+DM --> OE
+BT --> DM
+
+AS --> DM : apply + version bump
+AS --> PE : dedup check
+AS --> UR : status update
+AS --> OE : create outbox
+
+QB --> DM : сравнение
+@enduml
+```
+
 ![Модель данных и версия](./refdata-version-model.svg)
+
+SVG вариант: [refdata-version-model.svg](./refdata-version-model.svg)
 
 #### Для лидера АС: Поток отказа/восстановления
 
+```text
+@startuml
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #0f172a
+skinparam ArrowThickness 2
+
+start
+:1) apply-service commit\nversion=N, outbox row;
+:2) outbox-relay\nPUBLISH + XADD;
+
+if (3) Pub/Sub потерян?\n(рестарт/сеть/backpressure)) then (Нет)
+  :Обычная инвалидация query-api;
+else (Да)
+  :4) Детект gap\nredis_stream_lag / startup replay;
+  :5) XREADGROUP из stream;
+
+  if (6) event.version > localVersion?) then (Нет)
+    :Пропустить дубликат\nXACK;
+  else (Да)
+    :7) Single-flight full reload\n+ atomic swap;
+    :8) XACK\nобновить localVersion;
+    :Периодическая сверка\nс dictionary_meta.version;
+  endif
+endif
+
+note right
+Результат:
+кэш догоняется автоматически
+без ручного вмешательства
+end note
+
+note left
+Строгие чтения не stale:
+X-Min-Version и 409
+при недокоммите
+end note
+
+stop
+@enduml
+```
+
 ![Поток отказа и восстановления](./refdata-recovery.svg)
+
+SVG вариант: [refdata-recovery.svg](./refdata-recovery.svg)
 
 #### Для стрим-лида: Карта зависимостей эпиков
 
+```text
+@startuml
+left to right direction
+skinparam defaultFontName Arial
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #0f172a
+skinparam ArrowThickness 2
+
+rectangle "Epic 1\nКонтракты и infra baseline" as E1
+rectangle "Epic 2\nMetadata-driven data access" as E2
+rectangle "Epic 3\nPipeline обновлений" as E3
+rectangle "Epic 4\nQuery API + кэш-консистентность" as E4
+rectangle "Epic 5\nSRE + production readiness" as E5
+
+rectangle "Milestone A\nКонтракты утверждены" as M1
+rectangle "Milestone B\nIdempotency + version bump доказаны" as M2
+rectangle "Milestone C\nНет stale-read под X-Min-Version" as M3
+rectangle "Milestone D\nGo-live readiness review" as M4
+
+artifact "Риск: вариативность схем БД" as R1
+artifact "Риск: промах по freshness SLO" as R2
+artifact "Риск: пробелы runbook" as R3
+
+E1 --> E2
+E2 --> E3
+E3 --> E4
+E4 --> E5
+
+E1 --> M1
+E3 --> M2
+E4 --> M3
+E5 --> M4
+
+R1 ..> E2
+R2 ..> E4
+R3 ..> E5
+@enduml
+```
+
 ![Карта зависимостей эпиков](./refdata-delivery-plan.svg)
+
+SVG вариант: [refdata-delivery-plan.svg](./refdata-delivery-plan.svg)
 
 ---
 
