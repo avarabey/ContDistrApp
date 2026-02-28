@@ -67,331 +67,292 @@
 
 ### 3.1 Архитектурная схема сервиса
 
-```text
-@startuml
-left to right direction
-skinparam defaultFontName Arial
-skinparam packageStyle rectangle
-skinparam shadowing false
-skinparam roundCorner 12
-skinparam ArrowColor #0f172a
-skinparam ArrowThickness 2
+```mermaid
+flowchart LR
+  classDef actor fill:#e0f2fe,stroke:#0284c7,stroke-width:2,color:#082f49
+  classDef service fill:#eef2ff,stroke:#4f46e5,stroke-width:2,color:#1e1b4b
+  classDef broker fill:#ecfdf5,stroke:#059669,stroke-width:2,color:#064e3b
+  classDef storage fill:#fff7ed,stroke:#ea580c,stroke-width:2,color:#7c2d12
 
-package "Внешние системы" {
-  actor "Клиент записи" as WR
-  actor "Клиент чтения" as RD
-  component "Внешний Kafka producer" as EK
-}
+  subgraph EXT["Внешние системы"]
+    WR["Клиент записи"]
+    RD["Клиент чтения"]
+    EK["Внешний Kafka producer"]
+  end
 
-package "Контур приёма" {
-  component "refdata-command-api" as CA
-  component "refdata-kafka-adapter" as KA
-  queue "Kafka\nrefdata.commands\nkey=tenantId:dictCode" as KC
-}
+  subgraph IN["Контур приема"]
+    CA["refdata-command-api"]
+    KA["refdata-kafka-adapter"]
+    KC[("Kafka\\nrefdata.commands\\nkey=tenantId:dictCode")]
+  end
 
-package "Контур применения" {
-  component "refdata-apply-service" as AS
-  database "PostgreSQL\nканонические данные +\nservice tables" as PG
-  component "refdata-outbox-relay" as OR
-}
+  subgraph APP["Контур применения"]
+    AS["refdata-apply-service"]
+    PG[("PostgreSQL\\nканонические данные + service tables")]
+    OR["refdata-outbox-relay"]
+  end
 
-package "Сигнализация" {
-  queue "Redis Pub/Sub\nrefdata:inv:pub" as RP
-  queue "Redis Streams\nrefdata:inv:stream" as RS
-}
+  subgraph SIG["Сигнализация"]
+    RP[("Redis Pub/Sub\\nrefdata:inv:pub")]
+    RS[("Redis Streams\\nrefdata:inv:stream")]
+  end
 
-package "Контур чтения" {
-  component "refdata-query-api\nкэш в памяти +\nversion barrier" as QA
-}
+  subgraph OUT["Контур чтения"]
+    QA["refdata-query-api\\nкэш в памяти + version barrier"]
+  end
 
-WR --> CA : POST /updates
-EK --> KA : external topic
-CA --> KC : нормализация + PENDING
-KA --> KC : нормализация tenant
-KC --> AS : ordered consume
-AS --> PG : apply + version + outbox
-PG --> OR : poll outbox
-OR --> RP : PUBLISH
-OR --> RS : XADD
-RP --> QA : invalidation
-RS --> QA : recovery
-QA --> PG : reload / fallback
-RD --> QA : GET /dictionaries
-@enduml
+  WR -->|"POST /updates"| CA
+  EK -->|"external topic"| KA
+  CA -->|"нормализация + PENDING"| KC
+  KA -->|"нормализация tenant"| KC
+  KC -->|"ordered consume"| AS
+  AS -->|"apply + version + outbox"| PG
+  PG -->|"poll outbox"| OR
+  OR -->|"PUBLISH"| RP
+  OR -->|"XADD"| RS
+  RP -->|"invalidation"| QA
+  RS -->|"recovery"| QA
+  QA -->|"reload / fallback"| PG
+  RD -->|"GET /dictionaries"| QA
+
+  class WR,RD,EK actor
+  class CA,KA,AS,OR,QA service
+  class KC,RP,RS broker
+  class PG storage
 ```
 
-![Архитектура сервиса](./refdata-architecture.svg)
-
-SVG вариант: [refdata-architecture.svg](./refdata-architecture.svg)
+Форматы: [SVG](./refdata-architecture.svg) | [PlantUML](./refdata-architecture.puml)
 
 ### 3.2 Дополнительные схемы для ролей
 
 #### Для аналитиков: Контекст системы
 
-```text
-@startuml
-left to right direction
-skinparam defaultFontName Arial
-skinparam packageStyle rectangle
-skinparam shadowing false
-skinparam roundCorner 12
-skinparam ArrowColor #0f172a
-skinparam ArrowThickness 2
+```mermaid
+flowchart LR
+  classDef ext fill:#dcfce7,stroke:#16a34a,stroke-width:2,color:#14532d
+  classDef core fill:#e0e7ff,stroke:#4338ca,stroke-width:2,color:#312e81
+  classDef infra fill:#fef3c7,stroke:#d97706,stroke-width:2,color:#78350f
 
-package "Внешний контур" {
-  component "MDM-источник" as MDM
-  component "Операционный backoffice" as OPS
-  component "Бизнес-сервисы" as BS
-  component "Identity Provider" as IAM
-  component "Observability stack" as OBS
-}
+  subgraph OUTER["Внешний контур"]
+    MDM["MDM-источник"]
+    OPS["Операционный backoffice"]
+    BS["Бизнес-сервисы"]
+    IAM["Identity Provider"]
+    OBS["Observability stack"]
+  end
 
-package "Платформа справочников" {
-  component "command-api" as CA
-  component "kafka-adapter" as KA
-  queue "Kafka\nrefdata.commands" as KC
-  component "apply-service" as AS
-  component "outbox-relay" as OR
-  component "query-api" as QA
-  database "PostgreSQL" as PG
-  queue "Redis Cluster" as R
-}
+  subgraph CORE["Платформа справочников"]
+    CA["command-api"]
+    KA["kafka-adapter"]
+    KC[("Kafka\\nrefdata.commands")]
+    AS["apply-service"]
+    OR["outbox-relay"]
+    QA["query-api"]
+    PG[("PostgreSQL")]
+    R[("Redis Cluster")]
+  end
 
-package "Инфраструктура" {
-  component "Kubernetes + Istio" as K8S
-  component "Tenant-изоляция / JWT / mTLS" as SEC
-}
+  subgraph PLATFORM["Инфраструктура"]
+    K8S["Kubernetes + Istio"]
+    SEC["Tenant-изоляция / JWT / mTLS"]
+  end
 
-MDM --> KA : Kafka события
-OPS --> CA : REST update
-BS --> QA : REST чтение
-IAM ..> CA : tenant_id claim
-IAM ..> QA : tenant_id claim
+  MDM -->|"Kafka события"| KA
+  OPS -->|"REST update"| CA
+  BS -->|"REST чтение"| QA
+  IAM -.->|"tenant_id claim"| CA
+  IAM -.->|"tenant_id claim"| QA
 
-CA --> KC
-KA --> KC
-KC --> AS
-AS --> PG
-PG --> OR
-OR --> R
-R --> QA
-QA --> PG
+  CA --> KC
+  KA --> KC
+  KC --> AS
+  AS --> PG
+  PG --> OR
+  OR --> R
+  R --> QA
+  QA --> PG
 
-QA ..> OBS
-AS ..> OBS
-K8S ..> CA
-K8S ..> QA
-SEC ..> CA
-SEC ..> QA
-@enduml
+  QA -.-> OBS
+  AS -.-> OBS
+  K8S -.-> CA
+  K8S -.-> QA
+  SEC -.-> CA
+  SEC -.-> QA
+
+  class MDM,OPS,BS,IAM,OBS ext
+  class CA,KA,KC,AS,OR,QA,PG,R core
+  class K8S,SEC infra
 ```
 
-![Контекст системы](./refdata-context.svg)
-
-SVG вариант: [refdata-context.svg](./refdata-context.svg)
+Форматы: [SVG](./refdata-context.svg) | [PlantUML](./refdata-context.puml)
 
 #### Для аналитиков: Последовательность записи/чтения
 
-```text
-@startuml
-skinparam defaultFontName Arial
-skinparam shadowing false
-skinparam roundCorner 12
-skinparam ArrowColor #0f172a
-skinparam ArrowThickness 2
+```mermaid
+sequenceDiagram
+  autonumber
+  actor C as Клиент
+  participant API as command-api
+  participant K as Kafka
+  participant A as apply-service
+  participant PG as PostgreSQL
+  participant O as outbox-relay
+  participant R as Redis
+  participant Q as query-api
 
-actor "Клиент" as C
-participant "command-api" as API
-queue "Kafka" as K
-participant "apply-service" as A
-database "PostgreSQL" as PG
-participant "outbox-relay" as O
-queue "Redis" as R
-participant "query-api" as Q
+  C->>API: POST /updates (ASYNC|WAIT_COMMIT)
+  API->>K: publish refdata.commands (key tenant:dict)
+  K->>A: consume ordered event
+  A->>PG: TX apply + bump dictionary_meta.version
+  A->>PG: update_request + outbox_event
+  PG-->>O: poll outbox
+  O->>R: PUBLISH + XADD invalidation
+  R->>Q: event {tenant, dict, version}
+  Q->>PG: reload dictionary + atomic swap
 
-C -> API : POST /updates (ASYNC|WAIT_COMMIT)
-API -> K : publish refdata.commands (key tenant:dict)
-K -> A : consume ordered event
-A -> PG : TX apply + bump dictionary_meta.version
-A -> PG : update_request + outbox_event
-PG --> O : poll outbox
-O -> R : PUBLISH + XADD invalidation
-R -> Q : event {tenant,dict,version}
-Q -> PG : reload dictionary + atomic swap
-
-alt ASYNC
-  API --> C : 202 + eventId + statusUrl
-  C -> API : GET /updates/{eventId}
-  API --> C : COMMITTED + committedVersion
-else WAIT_COMMIT
-  API --> C : 200 + committedVersion (или 202 timeout)
-end
-
-C -> Q : GET /dictionaries/* with X-Min-Version
-alt localVersion >= X-Min-Version
-  Q --> C : data from memory + X-Dict-Version
-else localVersion < X-Min-Version
-  Q -> PG : check dictionary_meta.version
-  alt primary version >= X-Min-Version
-    Q -> PG : fallback read + force reload
-    Q --> C : data + X-Data-Source=postgres_fallback
-  else primary version < X-Min-Version
-    Q --> C : 409 VERSION_NOT_COMMITTED
+  alt ASYNC
+    API-->>C: 202 + eventId + statusUrl
+    C->>API: GET /updates/{eventId}
+    API-->>C: COMMITTED + committedVersion
+  else WAIT_COMMIT
+    API-->>C: 200 + committedVersion (или 202 timeout)
   end
-end
-@enduml
+
+  C->>Q: GET /dictionaries/* with X-Min-Version
+  alt localVersion >= X-Min-Version
+    Q-->>C: data from memory + X-Dict-Version
+  else localVersion < X-Min-Version
+    Q->>PG: check dictionary_meta.version
+    alt primary version >= X-Min-Version
+      Q->>PG: fallback read + force reload
+      Q-->>C: data + X-Data-Source=postgres_fallback
+    else primary version < X-Min-Version
+      Q-->>C: 409 VERSION_NOT_COMMITTED
+    end
+  end
 ```
 
-![Последовательность записи/чтения](./refdata-write-read-sequence.svg)
-
-SVG вариант: [refdata-write-read-sequence.svg](./refdata-write-read-sequence.svg)
+Форматы: [SVG](./refdata-write-read-sequence.svg) | [PlantUML](./refdata-write-read-sequence.puml) | [Mermaid source](./refdata-write-read-sequence.mmd)
 
 #### Для лидера АС: Модель данных и версия консистентности
 
-```text
-@startuml
-left to right direction
-skinparam defaultFontName Arial
-skinparam packageStyle rectangle
-skinparam shadowing false
-skinparam roundCorner 12
-skinparam ArrowColor #0f172a
-skinparam ArrowThickness 2
+```mermaid
+flowchart LR
+  classDef table fill:#f1f5f9,stroke:#334155,stroke-width:2,color:#0f172a
+  classDef service fill:#ede9fe,stroke:#7c3aed,stroke-width:2,color:#3b0764
+  classDef note fill:#fefce8,stroke:#ca8a04,stroke-width:1.5,color:#713f12
 
-package "PostgreSQL service schema" {
-  entity "dictionary_meta\nPK(tenant_id,dict_code)\nversion - каноническая версия" as DM
-  entity "dictionary_item\nPK(tenant_id,dict_code,item_key)\npayload/deleted" as DI
-  entity "processed_event\nPK(tenant_id,event_id)\nидемпотентность" as PE
-  entity "update_request\nstatus + committed_version" as UR
-  entity "outbox_event\nversion + published" as OE
-  entity "Бизнес-таблицы\nчерез SQL-конфиг" as BT
-}
+  subgraph PGSCHEMA["PostgreSQL service schema"]
+    DM["dictionary_meta\\nPK(tenant_id, dict_code)\\nversion - каноническая версия"]
+    DI["dictionary_item\\nPK(tenant_id, dict_code, item_key)\\npayload/deleted"]
+    PE["processed_event\\nPK(tenant_id, event_id)\\nидемпотентность"]
+    UR["update_request\\nstatus + committed_version"]
+    OE["outbox_event\\nversion + published"]
+    BT["Бизнес-таблицы\\nчерез SQL-конфиг"]
+  end
 
-component "apply-service транзакция" as AS
-component "query-api X-Min-Version" as QB
-note right of QB
-если версия ниже -> 409 VERSION_NOT_COMMITTED
-если версия достаточна -> ответ из memory/fallback
-end note
+  AS["apply-service\\nтранзакция"]
+  QB["query-api\\nX-Min-Version"]
+  N1["если версия ниже -> 409 VERSION_NOT_COMMITTED\\nесли версия достаточна -> ответ из memory/fallback"]
+  N2["driftCheckSql только диагностика\\nне участвует в version barrier"]
 
-note bottom of DM
-driftCheckSql только диагностика
-не участвует в version barrier
-end note
+  DM --- DI
+  PE --> UR
+  UR --> DM
+  DM --> OE
+  BT --> DM
 
-DM -- DI
-PE --> UR
-UR --> DM
-DM --> OE
-BT --> DM
+  AS -->|"apply + version bump"| DM
+  AS -->|"dedup check"| PE
+  AS -->|"status update"| UR
+  AS -->|"create outbox"| OE
 
-AS --> DM : apply + version bump
-AS --> PE : dedup check
-AS --> UR : status update
-AS --> OE : create outbox
+  QB -->|"сравнение"| DM
+  QB -.-> N1
+  DM -.-> N2
 
-QB --> DM : сравнение
-@enduml
+  class DM,DI,PE,UR,OE,BT table
+  class AS,QB service
+  class N1,N2 note
 ```
 
-![Модель данных и версия](./refdata-version-model.svg)
-
-SVG вариант: [refdata-version-model.svg](./refdata-version-model.svg)
+Форматы: [SVG](./refdata-version-model.svg) | [PlantUML](./refdata-version-model.puml)
 
 #### Для лидера АС: Поток отказа/восстановления
 
-```text
-@startuml
-skinparam defaultFontName Arial
-skinparam shadowing false
-skinparam roundCorner 12
-skinparam ArrowColor #0f172a
-skinparam ArrowThickness 2
+```mermaid
+flowchart TD
+  classDef step fill:#e0f2fe,stroke:#0284c7,stroke-width:2,color:#0c4a6e
+  classDef decision fill:#fef3c7,stroke:#d97706,stroke-width:2,color:#78350f
+  classDef result fill:#dcfce7,stroke:#16a34a,stroke-width:2,color:#14532d
+  classDef note fill:#f8fafc,stroke:#64748b,stroke-dasharray: 5 3,color:#0f172a
 
-start
-:1) apply-service commit\nversion=N, outbox row;
-:2) outbox-relay\nPUBLISH + XADD;
+  S(["Старт"]):::result --> A1["1) apply-service commit\\nversion=N, outbox row"]:::step
+  A1 --> A2["2) outbox-relay: PUBLISH + XADD"]:::step
+  A2 --> D1{"3) Pub/Sub потерян?\\n(рестарт/сеть/backpressure)"}:::decision
 
-if (3) Pub/Sub потерян?\n(рестарт/сеть/backpressure)) then (Нет)
-  :Обычная инвалидация query-api;
-else (Да)
-  :4) Детект gap\nredis_stream_lag / startup replay;
-  :5) XREADGROUP из stream;
+  D1 -->|"Нет"| OK["Обычная инвалидация query-api"]:::result
+  D1 -->|"Да"| G1["4) Детект gap: redis_stream_lag / startup replay"]:::step
+  G1 --> G2["5) XREADGROUP из stream"]:::step
+  G2 --> D2{"6) event.version > localVersion?"}:::decision
 
-  if (6) event.version > localVersion?) then (Нет)
-    :Пропустить дубликат\nXACK;
-  else (Да)
-    :7) Single-flight full reload\n+ atomic swap;
-    :8) XACK\nобновить localVersion;
-    :Периодическая сверка\nс dictionary_meta.version;
-  endif
-endif
+  D2 -->|"Нет"| SKIP["Пропустить дубликат + XACK"]:::step
+  D2 -->|"Да"| R1["7) Single-flight full reload + atomic swap"]:::step
+  R1 --> R2["8) XACK + обновить localVersion"]:::step
+  R2 --> R3["Периодическая сверка с dictionary_meta.version"]:::step
 
-note right
-Результат:
-кэш догоняется автоматически
-без ручного вмешательства
-end note
+  OK --> END(["Финиш"]):::result
+  SKIP --> END
+  R3 --> END
 
-note left
-Строгие чтения не stale:
-X-Min-Version и 409
-при недокоммите
-end note
-
-stop
-@enduml
+  N1["Результат: кэш догоняется автоматически\\nбез ручного вмешательства"]:::note
+  N2["Строгие чтения не stale: X-Min-Version и 409\\nпри недокоммите"]:::note
+  END -.-> N1
+  END -.-> N2
 ```
 
-![Поток отказа и восстановления](./refdata-recovery.svg)
-
-SVG вариант: [refdata-recovery.svg](./refdata-recovery.svg)
+Форматы: [SVG](./refdata-recovery.svg) | [PlantUML](./refdata-recovery.puml)
 
 #### Для стрим-лида: Карта зависимостей эпиков
 
-```text
-@startuml
-left to right direction
-skinparam defaultFontName Arial
-skinparam shadowing false
-skinparam roundCorner 12
-skinparam ArrowColor #0f172a
-skinparam ArrowThickness 2
+```mermaid
+flowchart LR
+  classDef epic fill:#e0e7ff,stroke:#4338ca,stroke-width:2,color:#312e81
+  classDef milestone fill:#dcfce7,stroke:#16a34a,stroke-width:2,color:#14532d
+  classDef risk fill:#fee2e2,stroke:#dc2626,stroke-width:2,color:#7f1d1d
 
-rectangle "Epic 1\nКонтракты и infra baseline" as E1
-rectangle "Epic 2\nMetadata-driven data access" as E2
-rectangle "Epic 3\nPipeline обновлений" as E3
-rectangle "Epic 4\nQuery API + кэш-консистентность" as E4
-rectangle "Epic 5\nSRE + production readiness" as E5
+  E1["Epic 1\\nКонтракты и infra baseline"]
+  E2["Epic 2\\nMetadata-driven data access"]
+  E3["Epic 3\\nPipeline обновлений"]
+  E4["Epic 4\\nQuery API + кэш-консистентность"]
+  E5["Epic 5\\nSRE + production readiness"]
 
-rectangle "Milestone A\nКонтракты утверждены" as M1
-rectangle "Milestone B\nIdempotency + version bump доказаны" as M2
-rectangle "Milestone C\nНет stale-read под X-Min-Version" as M3
-rectangle "Milestone D\nGo-live readiness review" as M4
+  M1["Milestone A\\nКонтракты утверждены"]
+  M2["Milestone B\\nIdempotency + version bump доказаны"]
+  M3["Milestone C\\nНет stale-read под X-Min-Version"]
+  M4["Milestone D\\nGo-live readiness review"]
 
-artifact "Риск: вариативность схем БД" as R1
-artifact "Риск: промах по freshness SLO" as R2
-artifact "Риск: пробелы runbook" as R3
+  R1["Риск: вариативность схем БД"]
+  R2["Риск: промах по freshness SLO"]
+  R3["Риск: пробелы runbook"]
 
-E1 --> E2
-E2 --> E3
-E3 --> E4
-E4 --> E5
+  E1 --> E2 --> E3 --> E4 --> E5
 
-E1 --> M1
-E3 --> M2
-E4 --> M3
-E5 --> M4
+  E1 --> M1
+  E3 --> M2
+  E4 --> M3
+  E5 --> M4
 
-R1 ..> E2
-R2 ..> E4
-R3 ..> E5
-@enduml
+  R1 -.-> E2
+  R2 -.-> E4
+  R3 -.-> E5
+
+  class E1,E2,E3,E4,E5 epic
+  class M1,M2,M3,M4 milestone
+  class R1,R2,R3 risk
 ```
 
-![Карта зависимостей эпиков](./refdata-delivery-plan.svg)
-
-SVG вариант: [refdata-delivery-plan.svg](./refdata-delivery-plan.svg)
+Форматы: [SVG](./refdata-delivery-plan.svg) | [PlantUML](./refdata-delivery-plan.puml)
 
 ---
 
