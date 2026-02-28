@@ -29,6 +29,7 @@
 - Контракты:
   - `docs/openapi.yaml`
   - `docs/schemas/*.json`
+  - `docs/final-solution.md` (детальная документация итогового решения со схемами)
 
 ## Структура
 
