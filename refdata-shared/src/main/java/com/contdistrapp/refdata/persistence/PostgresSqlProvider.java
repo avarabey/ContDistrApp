@@ -14,7 +14,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.HashMap;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +31,7 @@ public class PostgresSqlProvider implements DictionaryProvider {
             NamedParameterJdbcTemplate jdbc,
             PlatformRepository repository,
             DictionaryRegistry dictionaryRegistry,
-            ObjectMapper objectMapper
-    ) {
+            ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.repository = repository;
         this.dictionaryRegistry = dictionaryRegistry;
@@ -73,20 +72,21 @@ public class PostgresSqlProvider implements DictionaryProvider {
     }
 
     @Override
-    public void applyDelta(String tenantId, String dictCode, List<UpdateItem> items, UpdateCommand event, long eventVersion) {
+    public void applyDelta(String tenantId, String dictCode, List<UpdateItem> items, UpdateCommand event,
+            long eventVersion) {
         RefDataProperties.Dictionary cfg = dictionaryRegistry.required(dictCode);
         RefDataProperties.Apply apply = cfg.getApply();
-
         boolean hasTemplates = apply != null && apply.getUpsertSql() != null && apply.getDeleteSql() != null;
+
         for (UpdateItem item : items) {
             if (item.op() == ItemOperation.UPSERT) {
-                if (hasTemplates) {
+                if (hasTemplates && apply != null) {
                     executeTemplate(apply.getUpsertSql(), tenantId, cfg.getCode(), item, event, eventVersion);
                 } else {
                     genericUpsert(tenantId, cfg.getCode(), item);
                 }
             } else if (item.op() == ItemOperation.DELETE) {
-                if (hasTemplates) {
+                if (hasTemplates && apply != null) {
                     executeTemplate(apply.getDeleteSql(), tenantId, cfg.getCode(), item, event, eventVersion);
                 } else {
                     genericDelete(tenantId, cfg.getCode(), item.key());
@@ -96,7 +96,8 @@ public class PostgresSqlProvider implements DictionaryProvider {
     }
 
     @Override
-    public void applySnapshot(String tenantId, String dictCode, List<UpdateItem> items, UpdateCommand event, long eventVersion) {
+    public void applySnapshot(String tenantId, String dictCode, List<UpdateItem> items, UpdateCommand event,
+            long eventVersion) {
         RefDataProperties.Dictionary cfg = dictionaryRegistry.required(dictCode);
         RefDataProperties.Apply apply = cfg.getApply();
 
@@ -131,8 +132,7 @@ public class PostgresSqlProvider implements DictionaryProvider {
             String dictCode,
             UpdateItem item,
             UpdateCommand event,
-            long eventVersion
-    ) {
+            long eventVersion) {
         MapSqlParameterSource params = baseParams(tenantId, dictCode, event, eventVersion)
                 .addValue("key", item.key())
                 .addValue("payload", serialize(item.payload()));

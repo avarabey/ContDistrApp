@@ -3,10 +3,10 @@ package com.contdistrapp.refdata.bus;
 import com.contdistrapp.refdata.config.RefDataProperties;
 import com.contdistrapp.refdata.config.role.ConditionalOnRefdataRole;
 import com.contdistrapp.refdata.domain.InvalidationEvent;
-import com.contdistrapp.refdata.service.RefDataTimeouts;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import org.springframework.lang.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,7 +30,7 @@ import java.util.function.Consumer;
 
 @Component
 @ConditionalOnProperty(prefix = "refdata.redis", name = "enabled", havingValue = "true")
-@ConditionalOnRefdataRole({"query-api", "outbox-relay"})
+@ConditionalOnRefdataRole({ "query-api", "outbox-relay" })
 public class RedisInvalidationBus implements InvalidationBus, MessageListener {
 
     private static final Logger log = LoggerFactory.getLogger(RedisInvalidationBus.class);
@@ -38,7 +38,6 @@ public class RedisInvalidationBus implements InvalidationBus, MessageListener {
     private final StringRedisTemplate redisTemplate;
     private final RedisMessageListenerContainer listenerContainer;
     private final RefDataProperties properties;
-    private final RefDataTimeouts timeouts;
     private final ObjectMapper objectMapper;
     private final List<Consumer<InvalidationEvent>> listeners = new CopyOnWriteArrayList<>();
 
@@ -48,13 +47,10 @@ public class RedisInvalidationBus implements InvalidationBus, MessageListener {
             StringRedisTemplate redisTemplate,
             RedisMessageListenerContainer listenerContainer,
             RefDataProperties properties,
-            RefDataTimeouts timeouts,
-            ObjectMapper objectMapper
-    ) {
+            ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.listenerContainer = listenerContainer;
         this.properties = properties;
-        this.timeouts = timeouts;
         this.objectMapper = objectMapper;
         this.lastStreamId = properties.getRedis().getStreamStartId();
     }
@@ -84,7 +80,7 @@ public class RedisInvalidationBus implements InvalidationBus, MessageListener {
     }
 
     @Override
-    public void onMessage(Message message, byte[] pattern) {
+    public void onMessage(Message message, @Nullable byte[] pattern) {
         String payload = new String(message.getBody(), StandardCharsets.UTF_8);
         dispatchPayload(payload);
     }
@@ -94,9 +90,11 @@ public class RedisInvalidationBus implements InvalidationBus, MessageListener {
         try {
             List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().range(
                     properties.getRedis().getStreamKey(),
-                    Range.rightOpen(lastStreamId, "+")
-            );
+                    Range.rightOpen(lastStreamId, "+"));
 
+            if (records == null || records.isEmpty()) {
+                return;
+            }
             for (MapRecord<String, Object, Object> record : records) {
                 Object payload = record.getValue().get("event");
                 if (payload != null) {

@@ -1,7 +1,7 @@
 {
   "java.configuration.runtimes": [
     {
-      "name": "JavaSE-25",
+      "name": "JavaSE-17",
       "path": "/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home",
       "default": true
     }
@@ -10,5 +10,14 @@
   "maven.executable.path": "/opt/homebrew/bin/mvn",
   "java.compile.nullAnalysis.mode": "automatic",
   "markdown.validate.enabled": true,
-  "java.configuration.updateBuildConfiguration": "automatic"
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "python.testing.unittestArgs": [
+    "-v",
+    "-s",
+    ".",
+    "-p",
+    "*test.py"
+  ],
+  "python.testing.pytestEnabled": false,
+  "python.testing.unittestEnabled": true
 }

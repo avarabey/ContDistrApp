@@ -89,8 +89,7 @@ public class PlatformRepository {
                 rs.getString("dict_code"),
                 UpdateStatus.valueOf(rs.getString("status")),
                 (Long) rs.getObject("committed_version"),
-                rs.getString("error_message")
-        ));
+                rs.getString("error_message")));
         return rows.stream().findFirst();
     }
 
@@ -186,9 +185,8 @@ public class PlatformRepository {
                   and dict_code = :dictCode
                 """, params, (rs, rowNum) -> new DictionaryMetaRecord(
                 rs.getLong("version"),
-                (Long) rs.getObject("last_source_revision")
-        ));
-        return rows.isEmpty() ? new DictionaryMetaRecord(0, null) : rows.getFirst();
+                (Long) rs.getObject("last_source_revision")));
+        return rows.isEmpty() ? new DictionaryMetaRecord(0, null) : rows.get(0);
     }
 
     public long allocateNextVersion(String tenantId, String dictCode, Long sourceRevision) {
@@ -282,8 +280,7 @@ public class PlatformRepository {
                 rs.getString("event_id"),
                 rs.getString("dict_code"),
                 rs.getLong("version"),
-                rs.getString("payload")
-        ));
+                rs.getString("payload")));
     }
 
     public void markOutboxPublished(long id) {
