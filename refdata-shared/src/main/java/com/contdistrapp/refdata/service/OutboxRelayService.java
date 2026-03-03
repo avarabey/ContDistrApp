@@ -11,11 +11,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
 
 @Service
-@ConditionalOnRefdataRole({"outbox-relay"})
+@ConditionalOnRefdataRole({ "outbox-relay" })
 public class OutboxRelayService {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelayService.class);
@@ -29,8 +28,7 @@ public class OutboxRelayService {
             PlatformRepository repository,
             InvalidationBus invalidationBus,
             RefDataTimeouts timeouts,
-            ObjectMapper objectMapper
-    ) {
+            ObjectMapper objectMapper) {
         this.repository = repository;
         this.invalidationBus = invalidationBus;
         this.timeouts = timeouts;
@@ -46,7 +44,8 @@ public class OutboxRelayService {
                 invalidationBus.publish(event);
                 repository.markOutboxPublished(record.id());
             } catch (Exception ex) {
-                log.error("Failed to relay outbox event id={} tenant={} dict={}", record.id(), record.tenantId(), record.dictCode(), ex);
+                log.error("Failed to relay outbox event id={} tenant={} dict={}", record.id(), record.tenantId(),
+                        record.dictCode(), ex);
             }
         }
     }
